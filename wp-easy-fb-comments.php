@@ -11,43 +11,87 @@
 
 class WP_FB_Comments
 {
-	protected static $_cache = array();
+	protected $_cache = array();
+	protected static $_instance = null;
+	protected $_options = null;
 
-	public static function opg_head()
+	public static function getInstance()
 	{
-		##$options = get_option('WP_FB_Comments');
-		$options = array('appID'=>0, 'mods'=>'0');
+		if (self::$_instance === null) {
+			self::$_instance = new self();
+		}
+		return self::$_instance;
+	}
+
+	protected function __construct()
+	{
+		$this->_options = json_decode(get_option(get_class($this), '{}'), true);
+		$cache = wp_cache_get(get_class($this));
+		if ($cache === false) {
+			$cache = '{}';
+		}
+		$this->_cache = json_decode($cache, true);
+
+		if (function_exists('json_decode')) {
+			add_filter('get_comments_number', array($this, 'getCommentCount'));
+		}
+		add_filter('comments_template', array($this, 'commentsTemplate'));
+		add_action('wp_head', array($this, 'opgHead'));
+		add_action('shutdown', array($this, 'saveOptions'));
+		add_action('shutdown', array($this, 'saveCache'));
+	}
+
+	public function saveOptions()
+	{
+		update_option(get_class($this), json_encode($this->_options));	
+	}
+
+	public function saveCache()
+	{
+		wp_cache_set(get_class($this), json_encode($this->_cache), null, 300);
+	}
+
+	public function getOption($name)
+	{
+		return (isset($this->_options[$name])) ? $this->_options[$name] : null;
+	}
+	
+	public function setOption($name, $value)
+	{
+		$this->_options[$name] = $value;
+		return $this;
+	}
+
+	public function opgHead()
+	{
+		$options = $this->_options + array('appID'=>0, 'mods'=>'0');
 		echo '<meta property="fb:app_id" content="'.$options['appID'].'"/>';
 		echo '<meta property="fb:admins" content="'.$options['mods'].'"/>';
 	}
 
-	public static function comments_template($args = array(), $postID = 0)
+	public function commentsTemplate($args = array(), $postID = 0)
 	{
 		return dirname(__FILE__) . '/comments.php';
 	}
 
-	public static function get_comment_number($postID = 0)
+	public function getCommentCount($postID = 0)
 	{
 		if ($postID === 0) {
 			global $post;
 			$postID = $post->ID;
 		}
-		if (!isset(self::$_cache[$postID])) {
+		if (!isset($this->_cache[$postID])) {
 			$r = wp_remote_get('https://graph.facebook.com/?id='.get_permalink($postID));
 			if ($r instanceof WP_Error) {
-				self::$_cache[$postID] = 0;
+				$this->_cache[$postID] = 0;
 			}
 			else {
 				$json = json_decode($r['body'], true);	
-				self::$_cache[$postID] = (isset($r['comments'])) ? (int)$r['comments'] : 0;
+				$this->_cache[$postID] = (isset($json['comments'])) ? (int)$json['comments'] : 0;
 			}
 		}
-		return self::$_cache[$postID];
+		return $this->_cache[$postID];
 	}
 }
 
-if (function_exists('json_decode')) {
-	add_filter('get_comments_number', 'WP_FB_Comments::get_comment_number');
-}
-add_filter('comments_template', 'WP_FB_Comments::comments_template');
-add_action('wp_head', 'WP_FB_Comments::opg_head');
+WP_FB_Comments::getInstance();
