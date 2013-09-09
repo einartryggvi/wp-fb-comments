@@ -39,6 +39,30 @@ class WP_FB_Comments
 		add_action('wp_head', array($this, 'opgHead'));
 		add_action('shutdown', array($this, 'saveOptions'));
 		add_action('shutdown', array($this, 'saveCache'));
+		add_action('admin_menu', array($this, 'adminMenu'));
+	}
+
+	public function adminMenu()
+	{
+		add_options_page('Facebook Comments', 'Facebook Comments', 'administrator', 'facebook_comments', array($this, 'settingsPage'));
+	}
+
+	public function isPost()
+	{
+		return (strtoupper($_SERVER['REQUEST_METHOD']) == 'POST');
+	}
+	
+	public function settingsPage()
+	{
+		if ($this->isPost()) {
+			foreach ($_POST as $k=>$v) {
+				if ($k === 'admins') {
+					$v = explode(',', preg_replace('/\s/', '', $v));
+				}
+				$this->setOption($k, $v);
+			}
+		}
+		require dirname(__FILE__).'/settings.php';
 	}
 
 	public function saveOptions()
@@ -64,9 +88,12 @@ class WP_FB_Comments
 
 	public function opgHead()
 	{
-		$options = $this->_options + array('appID'=>0, 'mods'=>'0');
-		echo '<meta property="fb:app_id" content="'.$options['appID'].'"/>';
-		echo '<meta property="fb:admins" content="'.$options['mods'].'"/>';
+		if ($this->getOption('appID')) {
+			echo '<meta property="fb:app_id" content="'.$this->getOption('appID').'"/>';
+		}
+		if (is_array($this->getOption('admins'))) {
+			echo '<meta property="fb:admins" content="'.implode(',', $this->getOption('admins')).'"/>';
+		}
 	}
 
 	public function commentsTemplate($args = array(), $postID = 0)

@@ -1,5 +1,15 @@
+<?php
+$wpFbComments = WP_FB_Comments::getInstance();
+?>
 <h3><?php echo __('Comments'); ?></h3>
-<div class="fb-comments" data-href="<?php echo get_permalink(); ?>" data-width="680"></div>
+<div class="fb-comments" data-href="<?php echo get_permalink(); ?>"
+	<?php if ($wpFbComments->getOption('width')) :?>
+	data-width="<?php echo $wpFbComments->getOption('width'); ?>"
+	<?php endif; ?>
+	<?php if ($wpFbComments->getOption('colorScheme')) :?>
+	data-colorscheme="<?php echo $wpFbComments->getOption('colorScheme'); ?>"
+	<?php endif; ?>
+></div>
 <script>
 	(function($) {
 		$(function() {
